@@ -31,11 +31,13 @@ public class OrderProcessor
 {
     private readonly List<OrderItem> _items;
     private readonly IPaymentMethod _paymentMethod;
+    private readonly IDiscount _discount;
 
-    public OrderProcessor(IPaymentMethod paymentMethod)
+    public OrderProcessor(IPaymentMethod paymentMethod, IDiscount discount)
     {
         _items = new();
         _paymentMethod = paymentMethod;
+        _discount = discount;
     }
 
     public void AddItem(string name, decimal price, int quantity)
@@ -55,13 +57,10 @@ public class OrderProcessor
         //     total += item.GetQuantity() * item.GetPrice();
         // }
 
-        if (total >= 10000)
-            total *= 0.9m;
-
-        return total;
+        return _discount.Apply(total);
     }
 
-    public void ProcessOrder(string paymentMethod, string notificationMethod)
+    public void ProcessOrder(string notificationMethod)
     {
         if (_items.Count == 0)
         {
@@ -119,15 +118,21 @@ public class Program
 {
     public static void Main()
     {
-        CardPaymentMethod cardPaymentMethod = new CardPaymentMethod();
-        CashPaymentMethod cashPaymentMethod = new CashPaymentMethod();
-        var order = new OrderProcessor(cashPaymentMethod);
+        AbstractPaymentMethodFabric paymentMethodFabric = new CashPaymentMethodFabric();
+        // CardPaymentMethod cardPaymentMethod = new CardPaymentMethod("http://example.com", "123");
+        // CashPaymentMethod cashPaymentMethod = new CashPaymentMethod(true);
+        IPaymentMethod paymentMethod = paymentMethodFabric.Create();
+        IDiscount discount = new NoDiscount();
+        var order = new OrderProcessor(
+            new DecoratorLoggerPaymentMethod(paymentMethod),
+            discount
+        );
 
-        order.AddItem("Keyboard", 4500m, 1);
+        order.AddItem("Keyboard", 4500m, 3);
         order.AddItem("Mouse", 1500m, 2);
 
         Console.WriteLine($"Order total: {order.CalculateTotal():F2}");
 
-        order.ProcessOrder("card", "console");
+        order.ProcessOrder("console");
     }
 }
